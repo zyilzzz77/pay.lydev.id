@@ -8,6 +8,9 @@ RUN npm ci --include=dev
 
 FROM deps AS build
 WORKDIR /app
+# Build harus berjalan dengan NODE_ENV=production; kalau tidak, JSX dikompilasi
+# ke runtime dev (jsxDEV) dan SSR gagal saat container berjalan di produksi.
+ENV NODE_ENV=production
 # prisma.config.ts membaca DATABASE_URL bahkan saat generate; nilai ini tidak dipakai untuk koneksi.
 ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
 COPY . .
