@@ -1,0 +1,14 @@
+node_modules/
+.output/
+dist/
+.tanstack/
+.vite/
+.npm-cache/
+.local-postgres/
+src/routeTree.gen.ts
+src/generated/
+.env
+.env.*
+!.env.example
+.commandcode/
+*.log

@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentEventSource {
+  SYSTEM
+  PROVIDER_WEBHOOK
+  WEBHOOK
+  ADMIN
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model Project {
+  id                String            @id @default(cuid())
+  slug              String            @unique
+  name              String
+  isActive          Boolean           @default(true)
+  webhookUrl        String?
+  webhookSecret     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  apiKeys           ApiKey[]
+  payments          Payment[]
+  webhookDeliveries WebhookDelivery[]
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  projectId  String
+  prefix     String
+  keyHash    String    @unique
+  label      String?
+  isActive   Boolean   @default(true)
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  orderId            String        @unique
+  projectId          String
+  externalReference  String?
+  providerPaymentId  String?       @unique
+  providerPaymentUrl String?
+  amount             Int
+  fee                Int?
+  providerAmount     Int?
+  currency           String        @default("IDR")
+  description        String?
+  status             PaymentStatus @default(CREATED)
+  paymentMethod      String?
+  customerName       String?
+  customerEmail      String?
+  publicMetadata     Json?
+  providerMetadata   Json?
+  expiresAt          DateTime?
+  paidAt             DateTime?
+  failedAt           DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  project            Project       @relation(fields: [projectId], references: [id])
+  events             PaymentEvent[]
+  qrAsset            PaymentQrAsset?
+  webhookDeliveries  WebhookDelivery[]
+
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
+}
+
+model PaymentQrAsset {
+  id        String   @id @default(cuid())
+  paymentId String   @unique
+  mimeType  String
+  image     Bytes
+  checksum  String
+  fetchedAt DateTime @default(now())
+  expiresAt DateTime?
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model PaymentEvent {
+  id              String             @id @default(cuid())
+  paymentId       String
+  source          PaymentEventSource
+  eventType       String
+  providerEventId String?            @unique
+  payloadHash     String?
+  createdAt       DateTime           @default(now())
+  payment         Payment            @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
+}
+
+model IdempotencyRecord {
+  id          String   @id @default(cuid())
+  projectId   String
+  key         String
+  requestHash String
+  paymentId   String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+
+  @@unique([projectId, key])
+  @@index([expiresAt])
+}
+
+model WebhookDelivery {
+  id             String                @id @default(cuid())
+  paymentId      String
+  projectId      String
+  eventType      String
+  url            String
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  nextAttemptAt  DateTime              @default(now())
+  lastStatusCode Int?
+  lastError      String?
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  payment        Payment               @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  project        Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+}

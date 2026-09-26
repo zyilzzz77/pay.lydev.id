@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lydev
+      POSTGRES_PASSWORD: lydev
+      POSTGRES_DB: lydev_pay
+    ports:
+      - "5432:5432"
+    volumes:
+      - lydev_pay_data:/var/lib/postgresql/data
+
+volumes:
+  lydev_pay_data:
