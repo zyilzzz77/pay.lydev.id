@@ -43,18 +43,26 @@ export async function handleSumopodWebhook(raw: string, headers: Headers) {
   let payload: unknown
   try { payload = JSON.parse(raw) }
   catch { return { status: 400, body: { error: 'Invalid JSON' } } }
+  // Event uji dari halaman Settings bisa datang dengan data kosong; cukup dibalas 200.
+  if (typeof payload === 'object' && payload !== null && (payload as { event_type?: unknown }).event_type === 'payment.test') {
+    return { status: 200, body: { ok: true } }
+  }
   const parsed = payloadSchema.safeParse(payload)
   if (!parsed.success) return { status: 400, body: { error: 'Invalid payload' } }
   const event = parsed.data
-  if (event.event_type === 'payment.test') return { status: 200, body: { ok: true } }
   if (!event.data) return { status: 400, body: { error: 'Missing payment data' } }
   const payment = await db.payment.findUnique({
     where: { orderId: event.data.order_id },
     include: { project: { select: { id: true, webhookUrl: true, webhookSecret: true } } },
   })
-  if (!payment || payment.providerPaymentId !== event.data.payment_id || payment.amount !== event.data.amount) {
+  if (!payment) return { status: 404, body: { error: 'Payment not found' } }
+  // Di production provider mengirim nominal gross (nominal dasar + fee), sedangkan
+  // kolom amount menyimpan nominal dasar. Terima keduanya agar webhook sah tidak ditolak.
+  const knownAmounts = [payment.amount, payment.providerAmount].filter((value): value is number => typeof value === 'number')
+  if (payment.providerPaymentId && payment.providerPaymentId !== event.data.payment_id) {
     return { status: 400, body: { error: 'Payment mismatch' } }
   }
+  if (!knownAmounts.includes(event.data.amount)) return { status: 400, body: { error: 'Amount mismatch' } }
   const newStatus = event.event_type === 'payment.completed' ? 'PAID'
     : event.event_type === 'payment.failed' ? 'FAILED' : 'EXPIRED'
   const expectedProviderStatus = newStatus === 'PAID' ? 'completed' : newStatus.toLowerCase()
