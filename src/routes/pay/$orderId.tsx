@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { PaymentLayout, PaymentTop, rupiah, totalAmount, type PaymentInfo } from '../../components/PaymentLayout'
+import { enableNotifications, notificationPermission, sendNotification, type NotificationState } from '../../lib/notify'
 
 export const Route = createFileRoute('/pay/$orderId')({ component: CheckoutPage })
 
 const POLL_INTERVAL_MS = 5000
+const TOAST_TIMEOUT_MS = 6000
 const TERMINAL_STATUSES = ['PAID', 'FAILED', 'EXPIRED', 'CANCELLED', 'REFUNDED']
 
 function CheckoutPage() {
@@ -17,9 +19,18 @@ function CheckoutPage() {
   const [seconds, setSeconds] = useState(0)
   const [checking, setChecking] = useState(false)
   const [checkMessage, setCheckMessage] = useState('')
+  const [toast, setToast] = useState('')
+  const [permission, setPermission] = useState<NotificationState>('unsupported')
   const notFoundRef = useRef(false)
+  const initializedRef = useRef(false)
+  const notifiedPaidRef = useRef(false)
 
   const qrUrl = `/api/pay/${encodeURIComponent(orderId)}/qr?v=${qrVersion}`
+
+  const announce = useCallback((message: string, tag: string) => {
+    setToast(message)
+    sendNotification('LYDEV Pay', message, tag)
+  }, [])
 
   const loadStatus = useCallback(async (signal?: AbortSignal) => {
     let response: Response
@@ -56,6 +67,15 @@ function CheckoutPage() {
         if (!active || !result) return
         setPayment(result)
         setError('')
+        if (!initializedRef.current) {
+          initializedRef.current = true
+          // Payment yang baru dibuat tampil sebagai CREATED/PENDING saat halaman dibuka.
+          if (result.status === 'PAID') notifiedPaidRef.current = true
+          else if (!TERMINAL_STATUSES.includes(result.status)) announce('Pembayaran berhasil dibuat.', 'lydev-pay-created')
+        } else if (result.status === 'PAID' && !notifiedPaidRef.current) {
+          notifiedPaidRef.current = true
+          announce('Pembayaran berhasil dibayar!', 'lydev-pay-paid')
+        }
         if (TERMINAL_STATUSES.includes(result.status)) stop()
       } catch (cause) {
         if (!active || notFoundRef.current) return
@@ -70,7 +90,15 @@ function CheckoutPage() {
     void load(true)
     timer = window.setInterval(() => void load(false), POLL_INTERVAL_MS)
     return stop
-  }, [loadStatus])
+  }, [loadStatus, announce])
+
+  useEffect(() => { setPermission(notificationPermission()) }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => setToast(''), TOAST_TIMEOUT_MS)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   useEffect(() => {
     if (!payment?.expiresAt) return
@@ -86,6 +114,10 @@ function CheckoutPage() {
       const result = await loadStatus()
       setPayment(result)
       setError('')
+      if (result.status === 'PAID' && !notifiedPaidRef.current) {
+        notifiedPaidRef.current = true
+        announce('Pembayaran berhasil dibayar!', 'lydev-pay-paid')
+      }
       setCheckMessage(result.status === 'PAID'
         ? 'Pembayaran sudah diterima. Terima kasih!'
         : result.status === 'PENDING'
@@ -104,8 +136,9 @@ function CheckoutPage() {
     : !payment ? <div className="checkout-card loading-card">Menyiapkan detail pembayaran...</div> : <div className="checkout-card"><div className="order-summary"><div><span className="field-label">ORDER ID</span><strong className="mono">{payment.orderId}</strong></div><span className={`status-badge status-${payment.status.toLowerCase()}`}>{paid ? 'Berhasil' : terminal ? payment.status : 'Menunggu pembayaran'}</span></div><div className="amount-section"><span className="field-label">TOTAL PEMBAYARAN</span><strong>{rupiah(totalAmount(payment))}</strong><p>{payment.description || 'Pembayaran QRIS'}</p>{payment.fee ? <p className="muted">Termasuk biaya layanan {rupiah(payment.fee)} · Nominal dasar {rupiah(payment.amount)}</p> : null}</div>
       {paid ? <div className="success-area"><div className="success-mark">✓</div><h2>Pembayaran diterima</h2><p>Status ini berasal dari webhook Sumopod yang telah diverifikasi.</p></div>
       : terminal ? <div className="success-area"><div className="terminal-mark">!</div><h2>Transaksi {payment.status.toLowerCase()}</h2><p>Silakan minta penjual membuat payment baru jika masih ingin membayar.</p></div>
-      : <><div className="qr-area"><div className="qr-corners"><div className="qr-box">{qrAvailable ? <img key={qrVersion} src={qrUrl} alt="Kode QRIS untuk pembayaran ini" onError={() => setQrAvailable(false)} /> : <div className="qr-missing"><span>◇</span><strong>QR belum tersedia</strong><p>Minta penjual membuka dashboard untuk mengambil ulang QR.</p></div>}</div></div><div className="qris-label">QRIS <span>·</span> SCAN TO PAY</div><p>Buka aplikasi bank atau e-wallet, lalu scan kode QR di atas.</p></div><div className="check-row">{qrAvailable ? <a className="button button-outline" href={qrUrl} download={`${orderId}.png`}>Simpan gambar QR (.png)</a> : null}<button className="button button-outline" type="button" onClick={checkNow} disabled={checking}>{checking ? 'Memeriksa...' : 'Cek pembayaran'}</button>{checkMessage ? <p className="muted" role="status">{checkMessage}</p> : null}</div><div className="pay-steps"><div className="eyebrow">CARA PEMBAYARAN</div><ol><li><span><strong>Buka aplikasi</strong> e-wallet Anda (GoPay, OVO, DANA, ShopeePay, LinkAja) atau m-banking (BCA mobile, Livin', BRImo, dan lainnya).</span></li><li><span>Pilih menu <strong>QRIS</strong>, <strong>Bayar</strong>, atau <strong>Scan QR</strong>.</span></li><li><span>Arahkan kamera ke <strong>kode QR di atas</strong> sampai terbaca.</span></li><li><span><strong>Periksa nominal {rupiah(totalAmount(payment))}</strong> dan nama merchant sebelum melanjutkan. Kode QR ini hanya berlaku untuk transaksi ini.</span></li><li><span>Masukkan PIN atau konfirmasi pembayaran di aplikasi Anda.</span></li><li><span>Simpan bukti pembayaran. Status di halaman ini berubah otomatis begitu pembayaran terverifikasi.</span></li></ol></div><div className="countdown-row"><span className="pulse-dot" /> Menunggu pembayaran <span className="countdown-time">Sisa waktu <strong>{time}</strong></span></div></>}
+      : <><div className="qr-area"><div className="qr-corners"><div className="qr-box">{qrAvailable ? <img key={qrVersion} src={qrUrl} alt="Kode QRIS untuk pembayaran ini" onError={() => setQrAvailable(false)} /> : <div className="qr-missing"><span>◇</span><strong>QR belum tersedia</strong><p>Minta penjual membuka dashboard untuk mengambil ulang QR.</p></div>}</div></div><div className="qris-label">QRIS <span>·</span> SCAN TO PAY</div><p>Buka aplikasi bank atau e-wallet, lalu scan kode QR di atas.</p></div><div className="check-row">{qrAvailable ? <a className="button button-outline" href={qrUrl} download={`${orderId}.png`}>Simpan gambar QR (.png)</a> : null}<button className="button button-outline" type="button" onClick={checkNow} disabled={checking}>{checking ? 'Memeriksa...' : 'Cek pembayaran'}</button>{permission === 'default' ? <button className="button button-outline" type="button" onClick={async () => { await enableNotifications(); setPermission(notificationPermission()) }}>Aktifkan notifikasi browser</button> : null}{checkMessage ? <p className="muted" role="status">{checkMessage}</p> : null}</div><div className="pay-steps"><div className="eyebrow">CARA PEMBAYARAN</div><ol><li><span><strong>Buka aplikasi</strong> e-wallet Anda (GoPay, OVO, DANA, ShopeePay, LinkAja) atau m-banking (BCA mobile, Livin', BRImo, dan lainnya).</span></li><li><span>Pilih menu <strong>QRIS</strong>, <strong>Bayar</strong>, atau <strong>Scan QR</strong>.</span></li><li><span>Arahkan kamera ke <strong>kode QR di atas</strong> sampai terbaca.</span></li><li><span><strong>Periksa nominal {rupiah(totalAmount(payment))}</strong> dan nama merchant sebelum melanjutkan. Kode QR ini hanya berlaku untuk transaksi ini.</span></li><li><span>Masukkan PIN atau konfirmasi pembayaran di aplikasi Anda.</span></li><li><span>Simpan bukti pembayaran. Status di halaman ini berubah otomatis begitu pembayaran terverifikasi.</span></li></ol></div><div className="countdown-row"><span className="pulse-dot" /> Menunggu pembayaran <span className="countdown-time">Sisa waktu <strong>{time}</strong></span></div></>}
       <div className="checkout-actions"><span>Pembayaran diperiksa otomatis setiap 5 detik</span><span>Pembayaran diproses aman oleh Sumopod</span></div>
     </div>}
+    {toast ? <div className="toast" role="status">{toast}<button type="button" onClick={() => setToast('')}>×</button></div> : null}
   </PaymentLayout>
 }
