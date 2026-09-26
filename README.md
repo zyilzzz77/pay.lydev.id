@@ -29,6 +29,7 @@ Jika Anda memakai cluster PostgreSQL lokal yang dibuat di `.local-postgres/data`
 | GET | `/api/v1/payments/:orderId/status` | Sesi operator atau API key project pemilik |
 | GET | `/api/v1/payments/:orderId/qr` | Sesi operator atau API key project pemilik |
 | POST | `/api/webhooks/sumopod` | Signature Svix Sumopod |
+| GET | `/api/admin/payments/export` | Sesi operator — unduh laporan transaksi `.xlsx` |
 | GET | `/api/health` | Pemeriksaan status minimal |
 
 Contoh request dari backend project:
@@ -46,6 +47,8 @@ Content-Type: application/json
 Respons berisi `orderId`, status, jumlah, tanggal kedaluwarsa, dan URL checkout LYDEV. URL provider dan rahasia tidak dikirim ke browser. `DELETE` untuk transaksi belum tersedia karena dokumentasi yang diberikan belum memuat pembatalan payment di Sumopod. Menghapus record lokal tidak akan membatalkan tagihan provider; kunci API dapat dinonaktifkan dari dashboard.
 
 Pembuatan payment melalui API key dibatasi 10 request per menit per project pada satu proses aplikasi. Untuk beberapa instance server, gunakan rate limiter bersama di reverse proxy atau database. Halaman checkout `/pay/<orderId>` bersifat **publik dan bisa dibagikan**: `orderId` (ULID) berlaku sebagai tautan kapabilitas, sama seperti tautan pembayaran provider. Pembayar tanpa akun dapat memindai QR, menyimpan gambarnya sebagai `.png`, dan statusnya diperiksa otomatis setiap 5 detik. Tautan yang lewat 24 jam tanpa pembayaran tidak lagi berlaku dan menampilkan "Link tidak berlaku"; payment yang sudah `PAID` tetap dapat dibuka. Endpoint publiknya hanya `GET /api/pay/:orderId` dan `GET /api/pay/:orderId/qr` — keduanya tanpa kredensial, tanpa operasi tulis, dan hanya mengembalikan data yang dibutuhkan pembayar (tanpa `externalReference`).
+
+Batas nominal pembayaran diatur `MIN_PAYMENT_AMOUNT` (default 10000) dan `MAX_PAYMENT_AMOUNT`. Amount di bawah minimal atau di atas maksimal **ditolak saat pembuatan** dengan pesan error, sehingga payment tidak pernah tercatat. Halaman checkout juga memakai Web Notifications API untuk memberi tahu "pembayaran dibuat" dan "pembayaran diterima" (permission diminta lewat tombol "Aktifkan notifikasi browser"), di samping toast dalam aplikasi. Dashboard menyediakan tombol **Unduh Excel (.xlsx)** di panel Recent Activity; file dihasilkan server tanpa dependensi tambahan.
 
 ## Webhook keluar
 

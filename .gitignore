@@ -10,5 +10,9 @@ src/generated/
 .env
 .env.*
 !.env.example
+!deploy/.env.prod.example
 .commandcode/
 *.log
+
+# Catatan akses VPS (host/IP/key) — jangan pernah di-commit
+deploy/*.local.md
