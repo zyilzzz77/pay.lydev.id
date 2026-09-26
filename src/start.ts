@@ -36,8 +36,10 @@ function withSecurityHeaders(response: Response) {
 
 const gate = createMiddleware().server(async ({ next, request }) => {
   const path = new URL(request.url).pathname
-  // Each API route below applies its own project, provider, or operator credential check.
-  const guarded = path === '/login' || path.startsWith('/api/')
+  // Halaman checkout /pay/<orderId> memang publik: orderId bertindak sebagai tautan
+  // kapabilitas supaya pembayar tanpa akun bisa membuka dan memindai QR.
+  // Setiap route API di bawah tetap memverifikasi kredensialnya sendiri.
+  const guarded = path === '/login' || path.startsWith('/api/') || path === '/pay' || path.startsWith('/pay/')
   if (guarded || await readSession(request)) {
     const result = await next()
     return withSecurityHeaders(result.response)

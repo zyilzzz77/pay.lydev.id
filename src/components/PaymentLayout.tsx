@@ -18,8 +18,8 @@ export function totalAmount(payment: PaymentInfo) {
   return payment.providerAmount ?? payment.amount
 }
 
-export function PaymentLayout({ children }: { children: ReactNode }) {
-  return <div className="checkout-shell"><header className="checkout-header"><Brand /><span className="checkout-secure"><span>✧</span> Secure payment</span></header><main className="checkout-main">{children}</main><footer className="checkout-footer"><span>© 2026 LYDEV PAY</span><span>PRIVATE & SECURE CHECKOUT</span><Link to="/dashboard">Kembali ke dashboard ↗</Link></footer></div>
+export function PaymentLayout({ children, showDashboardLink = true }: { children: ReactNode; showDashboardLink?: boolean }) {
+  return <div className="checkout-shell"><header className="checkout-header"><Brand /><span className="checkout-secure"><span>✧</span> Secure payment</span></header><main className="checkout-main">{children}</main><footer className="checkout-footer"><span>© 2026 LYDEV PAY</span><span>PRIVATE & SECURE CHECKOUT</span>{showDashboardLink ? <Link to="/dashboard">Kembali ke dashboard ↗</Link> : <span>Butuh bantuan? Hubungi penjual</span>}</footer></div>
 }
 
 export function PaymentTop({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle: string }) {

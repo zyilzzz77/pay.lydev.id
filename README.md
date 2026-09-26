@@ -45,7 +45,7 @@ Content-Type: application/json
 
 Respons berisi `orderId`, status, jumlah, tanggal kedaluwarsa, dan URL checkout LYDEV. URL provider dan rahasia tidak dikirim ke browser. `DELETE` untuk transaksi belum tersedia karena dokumentasi yang diberikan belum memuat pembatalan payment di Sumopod. Menghapus record lokal tidak akan membatalkan tagihan provider; kunci API dapat dinonaktifkan dari dashboard.
 
-Pembuatan payment melalui API key dibatasi 10 request per menit per project pada satu proses aplikasi. Untuk beberapa instance server, gunakan rate limiter bersama di reverse proxy atau database. Browser checkout tetap memerlukan login operator, sehingga URL checkout pada respons API tidak dapat dibuka pelanggan umum.
+Pembuatan payment melalui API key dibatasi 10 request per menit per project pada satu proses aplikasi. Untuk beberapa instance server, gunakan rate limiter bersama di reverse proxy atau database. Halaman checkout `/pay/<orderId>` bersifat **publik dan bisa dibagikan**: `orderId` (ULID) berlaku sebagai tautan kapabilitas, sama seperti tautan pembayaran provider. Pembayar tanpa akun dapat memindai QR, menyimpan gambarnya sebagai `.png`, dan statusnya diperiksa otomatis setiap 5 detik. Tautan yang lewat 24 jam tanpa pembayaran tidak lagi berlaku dan menampilkan "Link tidak berlaku"; payment yang sudah `PAID` tetap dapat dibuka. Endpoint publiknya hanya `GET /api/pay/:orderId` dan `GET /api/pay/:orderId/qr` — keduanya tanpa kredensial, tanpa operasi tulis, dan hanya mengembalikan data yang dibutuhkan pembayar (tanpa `externalReference`).
 
 ## Webhook keluar
 

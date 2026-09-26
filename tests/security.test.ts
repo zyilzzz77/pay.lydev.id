@@ -18,7 +18,7 @@ beforeAll(() => {
 
 describe('Sumopod webhook verification', () => {
   it('accepts a valid signature and rejects tampered or stale content', async () => {
-    const { verifySumopodWebhook } = await import('../src/server/providers/sumopod-webhook')
+    const { verifySumopodWebhook } = await import('../src/server/providers/sumopod-signature')
     const raw = '{"event_type":"payment.test"}'
     const id = 'msg_test_123'
     const timestamp = String(Math.floor(Date.now() / 1000))
