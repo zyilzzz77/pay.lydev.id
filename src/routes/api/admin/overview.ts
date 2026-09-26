@@ -23,6 +23,7 @@ export const Route = createFileRoute('/api/admin/overview')({
         const fees = paidTotals._sum.fee ?? 0
         return Response.json({
           baseUrl: getEnv().APP_URL,
+          minAmount: getEnv().MIN_PAYMENT_AMOUNT,
           projects,
           keys,
           payments: payments.map((payment) => ({ ...paymentDto(payment), projectName: payment.project.name, hasQr: Boolean(payment.qrAsset) })),

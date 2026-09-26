@@ -16,9 +16,13 @@ const schema = z.object({
   QR_BROWSER_CHANNEL: z.string().default('chrome'),
   QR_BROWSER_EXECUTABLE_PATH: z.string().optional(),
   API_KEY_PEPPER: z.string().min(32),
+  MIN_PAYMENT_AMOUNT: z.coerce.number().int().positive().default(10000),
   MAX_PAYMENT_AMOUNT: z.coerce.number().int().positive().default(10000000),
   TRUSTED_PROXY_HEADER: z.string().trim().default('cf-connecting-ip'),
 }).superRefine((env, ctx) => {
+  if (env.MIN_PAYMENT_AMOUNT > env.MAX_PAYMENT_AMOUNT) {
+    ctx.addIssue({ code: 'custom', path: ['MIN_PAYMENT_AMOUNT'], message: 'MIN_PAYMENT_AMOUNT tidak boleh melebihi MAX_PAYMENT_AMOUNT' })
+  }
   if (env.NODE_ENV === 'production') {
     if (!env.SUMOPOD_API_KEY) ctx.addIssue({ code: 'custom', path: ['SUMOPOD_API_KEY'], message: 'Required in production' })
     if (!env.SUMOPOD_WEBHOOK_SECRET.startsWith('whsec_')) ctx.addIssue({ code: 'custom', path: ['SUMOPOD_WEBHOOK_SECRET'], message: 'Required in production' })
