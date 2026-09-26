@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { PaymentLayout, PaymentTop, rupiah, totalAmount, type PaymentInfo } from '../../components/PaymentLayout'
 
 export const Route = createFileRoute('/pay/$orderId')({ component: CheckoutPage })
+
+const POLL_INTERVAL_MS = 5000
+const TERMINAL_STATUSES = ['PAID', 'FAILED', 'EXPIRED', 'CANCELLED', 'REFUNDED']
 
 function CheckoutPage() {
   const { orderId } = Route.useParams()
@@ -18,8 +21,14 @@ function CheckoutPage() {
 
   const qrUrl = `/api/pay/${encodeURIComponent(orderId)}/qr?v=${qrVersion}`
 
-  async function loadStatus() {
-    const response = await fetch(`/api/pay/${encodeURIComponent(orderId)}`)
+  const loadStatus = useCallback(async (signal?: AbortSignal) => {
+    let response: Response
+    try {
+      response = await fetch(`/api/pay/${encodeURIComponent(orderId)}`, { signal })
+    } catch (cause) {
+      if ((cause as Error).name === 'AbortError') throw cause
+      throw new Error('Gagal menghubungi server. Periksa koneksi Anda lalu coba lagi.')
+    }
     if (response.status === 404) {
       notFoundRef.current = true
       setNotFound(true)
@@ -27,21 +36,41 @@ function CheckoutPage() {
     }
     if (!response.ok) throw new Error('Gagal memuat status pembayaran.')
     return await response.json() as PaymentInfo
-  }
+  }, [orderId])
 
   useEffect(() => {
+    if (notFoundRef.current) return
+    const controller = new AbortController()
     let active = true
-    async function load() {
-      if (notFoundRef.current) return
-      try {
-        const result = await loadStatus()
-        if (active && result) setPayment(result)
-      } catch (cause) { if (active && !notFoundRef.current) setError((cause as Error).message) }
+    let timer: number | undefined
+
+    function stop() {
+      active = false
+      controller.abort()
+      if (timer !== undefined) window.clearInterval(timer)
     }
-    load()
-    const timer = window.setInterval(load, 5000)
-    return () => { active = false; clearInterval(timer) }
-  }, [orderId])
+
+    async function load(initial: boolean) {
+      try {
+        const result = await loadStatus(controller.signal)
+        if (!active || !result) return
+        setPayment(result)
+        setError('')
+        if (TERMINAL_STATUSES.includes(result.status)) stop()
+      } catch (cause) {
+        if (!active || notFoundRef.current) return
+        if ((cause as Error).name === 'AbortError') return
+        // Kegagalan sesaat saat polling latar (mis. tab di-background) tidak perlu
+        // menampilkan error: state terakhir tetap ditampilkan sampai polling sukses lagi.
+        if (!initial) return
+        setError((cause as Error).message)
+      }
+    }
+
+    void load(true)
+    timer = window.setInterval(() => void load(false), POLL_INTERVAL_MS)
+    return stop
+  }, [loadStatus])
 
   useEffect(() => {
     if (!payment?.expiresAt) return
@@ -56,6 +85,7 @@ function CheckoutPage() {
     try {
       const result = await loadStatus()
       setPayment(result)
+      setError('')
       setCheckMessage(result.status === 'PAID'
         ? 'Pembayaran sudah diterima. Terima kasih!'
         : result.status === 'PENDING'
@@ -66,7 +96,7 @@ function CheckoutPage() {
 
   const time = `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
   const paid = payment?.status === 'PAID'
-  const terminal = payment && ['PAID', 'FAILED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(payment.status)
+  const terminal = payment ? TERMINAL_STATUSES.includes(payment.status) : false
 
   return <PaymentLayout showDashboardLink={false}><PaymentTop eyebrow="PAYMENT CHECKOUT" title={paid ? 'Pembayaran berhasil' : 'Selesaikan pembayaran'} subtitle={paid ? 'Transaksi Anda telah dikonfirmasi oleh provider.' : 'Scan QRIS di bawah menggunakan aplikasi pembayaran pilihan Anda.'} />
     {error && !notFound ? <div className="checkout-error" role="alert">{error}</div> : null}
