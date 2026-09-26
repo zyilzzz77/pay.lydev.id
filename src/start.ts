@@ -44,6 +44,7 @@ const gate = createMiddleware().server(async ({ next, request }) => {
   // /login, melainkan dibiarkan jatuh ke halaman 404 milik router.
   const isPrivatePage = path === '/'
     || path.startsWith('/dashboard')
+    || path.startsWith('/docs')
     || path.startsWith('/invoice/')
     || path.startsWith('/receipt/')
   if (isApi || isPublicPage || !isPrivatePage) {
