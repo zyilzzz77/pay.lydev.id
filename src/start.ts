@@ -36,11 +36,21 @@ function withSecurityHeaders(response: Response) {
 
 const gate = createMiddleware().server(async ({ next, request }) => {
   const path = new URL(request.url).pathname
-  // Halaman checkout /pay/<orderId> memang publik: orderId bertindak sebagai tautan
-  // kapabilitas supaya pembayar tanpa akun bisa membuka dan memindai QR.
-  // Setiap route API di bawah tetap memverifikasi kredensialnya sendiri.
-  const guarded = path === '/login' || path.startsWith('/api/') || path === '/pay' || path.startsWith('/pay/')
-  if (guarded || await readSession(request)) {
+  // Route API memverifikasi kredensialnya sendiri; halaman checkout /pay/<orderId>
+  // publik karena orderId berlaku sebagai tautan kapabilitas.
+  const isApi = path.startsWith('/api/')
+  const isPublicPage = path === '/login' || path.startsWith('/pay/')
+  // Hanya halaman operator yang butuh sesi. Path asing sengaja TIDAK dialihkan ke
+  // /login, melainkan dibiarkan jatuh ke halaman 404 milik router.
+  const isPrivatePage = path === '/'
+    || path.startsWith('/dashboard')
+    || path.startsWith('/invoice/')
+    || path.startsWith('/receipt/')
+  if (isApi || isPublicPage || !isPrivatePage) {
+    const result = await next()
+    return withSecurityHeaders(result.response)
+  }
+  if (await readSession(request)) {
     const result = await next()
     return withSecurityHeaders(result.response)
   }
