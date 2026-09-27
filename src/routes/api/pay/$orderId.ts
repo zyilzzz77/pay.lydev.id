@@ -24,7 +24,7 @@ export const Route = createFileRoute('/api/pay/$orderId')({
           fee: payment.fee ?? null,
           providerAmount: payment.providerAmount ?? null,
           description: payment.description ?? null,
-          externalReference: null,
+          externalReference: payment.externalReference ?? null,
           expiresAt: payment.expiresAt?.toISOString() ?? null,
           paidAt: payment.paidAt?.toISOString() ?? null,
           createdAt: payment.createdAt.toISOString(),

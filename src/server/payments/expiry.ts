@@ -15,8 +15,9 @@ async function expireOne(payment: PaymentWithProject) {
   const snapshot = { ...payment, status: 'EXPIRED' }
   let queued = false
   await db.$transaction(async (tx) => {
+    const updated = await tx.payment.updateMany({ where: { id: payment.id, status: 'PENDING' }, data: { status: 'EXPIRED', failedAt: new Date() } })
+    if (updated.count === 0) return
     await tx.paymentEvent.create({ data: { paymentId: payment.id, source: 'SYSTEM', eventType: 'payment.expired' } })
-    await tx.payment.updateMany({ where: { id: payment.id, status: 'PENDING' }, data: { status: 'EXPIRED', failedAt: new Date() } })
     queued = await enqueueWebhookDelivery(tx, snapshot, payment.project, event)
   })
   if (queued) void processDueDeliveries().catch((error) => console.error('webhook dispatcher failed', error))

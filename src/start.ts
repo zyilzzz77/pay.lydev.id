@@ -36,17 +36,18 @@ function withSecurityHeaders(response: Response) {
 
 const gate = createMiddleware().server(async ({ next, request }) => {
   const path = new URL(request.url).pathname
-  // Route API memverifikasi kredensialnya sendiri; halaman checkout /pay/<orderId>
-  // publik karena orderId berlaku sebagai tautan kapabilitas.
+  // Route API memverifikasi kredensialnya sendiri; halaman checkout, docs, invoice, dan receipt bersifat publik.
   const isApi = path.startsWith('/api/')
-  const isPublicPage = path === '/login' || path.startsWith('/pay/')
+  const isPublicPage = path === '/login'
+    || path.startsWith('/pay/')
+    || path === '/docs'
+    || path.startsWith('/docs/')
+    || path.startsWith('/invoice/')
+    || path.startsWith('/receipt/')
   // Hanya halaman operator yang butuh sesi. Path asing sengaja TIDAK dialihkan ke
   // /login, melainkan dibiarkan jatuh ke halaman 404 milik router.
   const isPrivatePage = path === '/'
     || path.startsWith('/dashboard')
-    || path.startsWith('/docs')
-    || path.startsWith('/invoice/')
-    || path.startsWith('/receipt/')
   if (isApi || isPublicPage || !isPrivatePage) {
     const result = await next()
     return withSecurityHeaders(result.response)

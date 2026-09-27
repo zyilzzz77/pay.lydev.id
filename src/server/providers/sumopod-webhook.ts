@@ -64,7 +64,7 @@ export async function handleSumopodWebhook(raw: string, headers: Headers) {
         payloadHash: createHash('sha256').update(raw).digest('hex'),
       } })
       if (shouldTransition) {
-        await tx.payment.updateMany({
+        const updated = await tx.payment.updateMany({
           where: { id: payment.id, status: 'PENDING' },
           data: {
             status: newStatus,
@@ -73,7 +73,7 @@ export async function handleSumopodWebhook(raw: string, headers: Headers) {
             failedAt,
           },
         })
-        if (webhookEvent) {
+        if (updated.count > 0 && webhookEvent) {
           queuedDelivery = await enqueueWebhookDelivery(tx, { ...payment, status: newStatus, paidAt: paidAt ?? payment.paidAt }, webhookProject, webhookEvent)
         }
       }

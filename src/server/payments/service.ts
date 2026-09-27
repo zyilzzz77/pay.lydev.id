@@ -4,6 +4,7 @@ import { db } from '../db'
 import { createSumopodPayment } from '../providers/sumopod'
 import { extractQr } from '../qr/extract'
 import { getEnv } from '../env'
+import type { Prisma } from '../../generated/prisma/client'
 import type { PaymentInput } from './validation'
 
 export class PaymentError extends Error {
@@ -94,7 +95,15 @@ export async function createPayment(projectId: string, input: PaymentInput, key:
     return paymentDto(payment)
   } catch (error) {
     if (payment.status === 'CREATED') {
-      await db.paymentEvent.create({ data: { paymentId: payment.id, source: 'SYSTEM', eventType: 'provider.create_failed' } })
+      try {
+        await db.$transaction(async (tx) => {
+          await tx.paymentEvent.create({ data: { paymentId: payment.id, source: 'SYSTEM', eventType: 'provider.create_failed' } })
+          await tx.payment.update({ where: { id: payment.id }, data: { status: 'FAILED', failedAt: new Date() } })
+          await tx.idempotencyRecord.deleteMany({ where: { projectId, key } })
+        })
+      } catch (cleanupError) {
+        console.error('Failed to cleanup failed payment record', cleanupError)
+      }
     }
     throw error
   }
