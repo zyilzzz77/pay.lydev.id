@@ -26,7 +26,7 @@ function readCookie(header: string, name: string) {
 
 export async function readSession(request: Request) {
   const header = request.headers.get('cookie') ?? ''
-  const value = readCookie(header, cookieName()) ?? readCookie(header, COOKIE)
+  const value = readCookie(header, cookieName())
   if (!value) return null
   try {
     const session = await unsealData<SessionData>(decodeURIComponent(value), {
