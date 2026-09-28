@@ -91,7 +91,7 @@ Sebelum memasang domain, siapkan PostgreSQL persisten, TLS, dan environment vari
 Aplikasi ini tidak pernah memakai port 80/443; ia mendengarkan port internal 3000, dan Caddy yang sudah berjalan menjadi satu-satunya pintu masuk untuk semua domain.
 
 1. Samakan network Docker dengan Caddy yang sudah ada: lihat `docker network ls`, lalu isi `CADDY_NETWORK` di `.env` sesuai nama network tersebut (default `caddy`).
-2. Buat `.env` dari `deploy/.env.prod.example`. Wajib: `APP_URL=https://pay.lydev.id`, `NODE_ENV=production`, `TRUSTED_PROXY_HEADER=x-real-ip`, `SUMOPOD_WEBHOOK_SECRET=whsec_...`.
+2. Buat `.env` dari `deploy/.env.prod.example`. Wajib: `APP_URL=https://pay.lydev.id`, `NODE_ENV=production`, `TRUSTED_PROXY_HEADER=cf-connecting-ip`, `SUMOPOD_WEBHOOK_SECRET=whsec_...`.
 3. Tambahkan blok situs dari `deploy/Caddyfile.pay.lydev.id` ke Caddyfile Caddy yang sedang berjalan (jangan menyalakan Caddy kedua), lalu reload Caddy.
 4. Migrasi sekali, lalu nyalakan:
    ```sh
@@ -106,5 +106,5 @@ Catatan operasional:
 - Service `postgres` sengaja tidak membuka port ke host dan hanya ada di network `internal`. Jangan menambahkan `ports:` di sana.
 - `QR_BROWSER_ENABLED=false` karena image runtime tidak memuat Chrome. Ekstraksi QR memakai payload QRIS dari HTML provider dan tetap berfungsi untuk `checkout.pymnt.app`. Bila kelak butuh fallback browser, image harus ditambah Chromium plus flag `--no-sandbox` (perlu penyesuaian kode) atau memakai Playwright image resmi.
 - Build image harus untuk arsitektur VPS. Lakukan build di dalam Docker seperti di atas; jangan menyalin `.output` hasil build Windows/macOS karena `argon2` adalah native module.
-- Caddy mengirim `X-Real-IP: {remote_host}`. Bila Cloudflare dipasang di depan, sesuaikan blok pada file Caddyfile dan set `TRUSTED_PROXY_HEADER=cf-connecting-ip`.
+- Cloudflare proxy ON: blok Caddy di `deploy/Caddyfile.pay.lydev.id` membiarkan header `CF-Connecting-IP` dari Cloudflare, dan aplikasi memakai `TRUSTED_PROXY_HEADER=cf-connecting-ip`. Jangan pakai `{remote_host}` di posisi ini — di belakang Cloudflare nilainya IP edge Cloudflare sehingga semua klien satu bucket. Batasi akses ke origin hanya dari IP Cloudflare agar header tersebut tidak bisa dipalsukan. Bila tanpa Cloudflare, pakai `header_up X-Real-IP {remote_host}` dan set `TRUSTED_PROXY_HEADER=x-real-ip`.
 - Rate limit login membaca elemen paling kanan dari header IP tepercaya, sehingga nilai kiriman klien tidak bisa dipakai untuk mengakali limit.

@@ -190,7 +190,8 @@ Blok situs LYDEV Pay ditempelkan ke Caddyfile Caddy bersama, ditandai penanda:
 pay.lydev.id {
 	encode zstd gzip
 	reverse_proxy lydev-pay-app:3000 {
-		header_up X-Real-IP {remote_host}
+		# Cloudflare proxy ON: biarkan header CF-Connecting-IP dari Cloudflare
+		# (set TRUSTED_PROXY_HEADER=cf-connecting-ip). Jangan pakai {remote_host}.
 	}
 	...
 }
@@ -216,7 +217,7 @@ Backup dulu sebelum mengedit (mis. `Caddyfile.bak.<tanggal>`).
 | Container `unhealthy` | `docker logs lydev-pay-app`; healthcheck hit `/api/health` dari dalam container |
 | App gagal start | env kurang/ salah di `/opt/lydev-pay/.env`; schema env menolak `APP_URL` non-https, `SUMOPOD_API_KEY` kosong, atau `SUMOPOD_WEBHOOK_SECRET` bukan `whsec_...` |
 | Perubahan tidak muncul | pastikan `git log --oneline -1` di VPS = commit terbaru, dan `build app` benar-benar selesai lalu `up -d` |
-| Halaman login di-rate-limit terus | `TRUSTED_PROXY_HEADER` tidak cocok dengan proxy; saat ini `x-real-ip` dan Caddy mengirim `X-Real-IP` |
+| Halaman login di-rate-limit terus | `TRUSTED_PROXY_HEADER` tidak cocok dengan proxy; di belakang Cloudflare pakai `cf-connecting-ip`, jangan `x-real-ip` (nilainya IP edge Cloudflare sehingga semua klien satu bucket) |
 | Disk penuh | `docker system df` lalu `docker image prune -f` (jangan hapus volume `lydev_pay_data`) |
 
 Perintah berguna:
@@ -243,7 +244,7 @@ docker volume ls | grep lydev
 ## 10. Deploy pertama kali (referensi, sudah pernah dilakukan)
 
 1. Siapkan `.env` di `/opt/lydev-pay` dari `deploy/.env.prod.example` (wajib: `APP_URL=https://pay.lydev.id`,
-   `NODE_ENV=production`, `TRUSTED_PROXY_HEADER=x-real-ip`, `SUMOPOD_WEBHOOK_SECRET=whsec_...`).
+   `NODE_ENV=production`, `TRUSTED_PROXY_HEADER=cf-connecting-ip`, `SUMOPOD_WEBHOOK_SECRET=whsec_...`).
 2. Samakan `CADDY_NETWORK` dengan network Caddy (`docker network ls`; nilai konkret ada di `deploy/vps-access.local.md`).
 3. Tambahkan blok `deploy/Caddyfile.pay.lydev.id` ke Caddyfile Caddy bersama, lalu reload Caddy.
 4. Migrasi + nyalakan:

@@ -25,7 +25,13 @@ function clientKey(request: Request) {
 function recordFailure(key: string, now: number) {
   if (attempts.size >= MAX_TRACKED_CLIENTS) {
     for (const [existing, state] of attempts) if (state.until <= now) attempts.delete(existing)
-    if (attempts.size >= MAX_TRACKED_CLIENTS) attempts.clear()
+    // Masih penuh: buang entri terlama satu per satu, jangan clear() seluruh map.
+    // clear() ikut menghapus bucket penyerang sehingga batasnya bisa direset.
+    while (attempts.size >= MAX_TRACKED_CLIENTS) {
+      const oldest = attempts.keys().next()
+      if (oldest.done || oldest.value === key) break
+      attempts.delete(oldest.value)
+    }
   }
   const state = attempts.get(key)
   attempts.set(key, {

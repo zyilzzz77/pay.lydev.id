@@ -6,15 +6,21 @@
 # - container ini terhubung ke network Docker yang sama dengan Caddy
 #   (lihat CADDY_NETWORK di docker-compose.prod.yml)
 # - DNS pay.lydev.id sudah mengarah ke VPS ini, port 80/443 sampai ke Caddy
-# - TRUSTED_PROXY_HEADER=x-real-ip di .env aplikasi
+# - TRUSTED_PROXY_HEADER=cf-connecting-ip di .env aplikasi (Cloudflare proxy ON)
 
 pay.lydev.id {
 	encode zstd gzip
 
 	reverse_proxy lydev-pay-app:3000 {
-		# Ganti header dengan IP klien asli supaya tidak bisa dipalsukan
-		# oleh header kiriman klien. Aplikasi membaca header ini.
-		header_up X-Real-IP {remote_host}
+		# Cloudflare ada di depan Caddy (proxy ON), jadi IP klien asli datang lewat
+		# header CF-Connecting-IP yang diisi Cloudflare. JANGAN pakai {remote_host}:
+		# di posisi ini nilainya IP edge Cloudflare, bukan IP pengunjung, sehingga
+		# semua klien jatuh ke satu bucket rate limit dan login operator bisa dikunci.
+		#
+		# Aplikasi membaca header ini (TRUSTED_PROXY_HEADER=cf-connecting-ip).
+		# Supaya tidak bisa dipalsukan lewat koneksi langsung ke origin, batasi akses
+		# ke VPS hanya dari rentang IP Cloudflare (security group/firewall) atau
+		# tambahkan `trusted_proxies` pada reverse_proxy ini.
 	}
 
 	log {
@@ -22,12 +28,12 @@ pay.lydev.id {
 	}
 }
 
-# Kalau Cloudflare dipasang di depan Caddy, {remote_host} berisi IP Cloudflare.
-# Pada kasus itu pakai blok berikut dan set TRUSTED_PROXY_HEADER=cf-connecting-ip:
+# Kalau TIDAK memakai Cloudflare (klien terhubung langsung ke Caddy), ganti blok
+# di atas dengan yang berikut dan set TRUSTED_PROXY_HEADER=x-real-ip di .env:
 #
 # pay.lydev.id {
 # 	encode zstd gzip
 # 	reverse_proxy lydev-pay-app:3000 {
-# 		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+# 		header_up X-Real-IP {remote_host}
 # 	}
 # }
