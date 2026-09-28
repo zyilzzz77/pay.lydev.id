@@ -4,6 +4,20 @@ import { Brand } from '../components/Brand'
 
 export const Route = createFileRoute('/login')({ component: LoginPage })
 
+// Hanya boleh kembali ke path di origin yang sama. Dicek lewat URL parser, bukan
+// startsWith, supaya varian seperti "/\evil.com" (dinormalisasi browser jadi
+// "//evil.com") tidak berubah menjadi open redirect.
+function safeNextTarget(next: string | null) {
+  if (!next) return '/dashboard'
+  try {
+    const target = new URL(next, window.location.origin)
+    if (target.origin !== window.location.origin) return '/dashboard'
+    return `${target.pathname}${target.search}${target.hash}`
+  } catch {
+    return '/dashboard'
+  }
+}
+
 function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,8 +36,7 @@ function LoginPage() {
       const result = await response.json()
       if (!response.ok) { setError(result.error ?? 'Gagal masuk.'); return }
       const next = new URLSearchParams(window.location.search).get('next')
-      const destination = next?.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
-      window.location.assign(destination)
+      window.location.assign(safeNextTarget(next))
     } catch { setError('Koneksi bermasalah. Coba lagi.') }
     finally { setBusy(false) }
   }
