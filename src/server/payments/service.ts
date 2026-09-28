@@ -4,7 +4,7 @@ import { db } from '../db'
 import { createSumopodPayment } from '../providers/sumopod'
 import { extractQr } from '../qr/extract'
 import { getEnv } from '../env'
-import type { Prisma } from '../../generated/prisma/client'
+import type { Payment, Prisma } from '../../generated/prisma/client'
 import type { PaymentInput } from './validation'
 
 export class PaymentError extends Error {
@@ -46,7 +46,7 @@ export async function createPayment(projectId: string, input: PaymentInput, key:
   }
 
   const orderId = `LY-${ulid()}`
-  let payment
+  let payment: Payment
   try {
     payment = await db.$transaction(async (tx) => {
       const created = await tx.payment.create({
